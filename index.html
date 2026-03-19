@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gestione Preventivi — Video Production</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f4f0;color:#1a1a1a;font-size:14px;min-height:100vh}
+.app{max-width:980px;margin:0 auto;padding:20px 16px}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;background:#fff;border:1px solid #e0dfd8;border-radius:12px;margin-bottom:16px;gap:12px;flex-wrap:wrap}
+.topbar-left{display:flex;align-items:center;gap:10px}
+.topbar-title{font-size:15px;font-weight:700;letter-spacing:-.01em}
+.sync-badge{font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid}
+.sync-badge.ok{background:#d8f0c0;color:#2d6a1a;border-color:#7fbc5a}
+.sync-badge.loading{background:#ffedc0;color:#7a4a0a;border-color:#e0b060}
+.sync-badge.error{background:#ffd8d8;color:#a02020;border-color:#f09595}
+.sync-badge.offline{background:#e8e6e0;color:#666;border-color:#ccc}
+.nav-tabs{display:flex;gap:4px}
+.tab-btn{padding:7px 16px;border:1px solid #e0dfd8;border-radius:8px;background:transparent;cursor:pointer;font-size:13px;color:#666;transition:all .15s}
+.tab-btn.active{background:#1a1a1a;color:#fff;border-color:#1a1a1a}
+.tab-btn:hover:not(.active){background:#f5f4f0}
+.content{background:#fff;border:1px solid #e0dfd8;border-radius:12px;padding:20px}
+/* SETUP SCREEN */
+.setup-wrap{max-width:600px;margin:0 auto;padding:8px 0}
+.setup-title{font-size:20px;font-weight:700;margin-bottom:6px}
+.setup-sub{font-size:13px;color:#888;margin-bottom:24px;line-height:1.6}
+.setup-step{display:flex;gap:14px;margin-bottom:20px;align-items:flex-start}
+.step-num{width:28px;height:28px;border-radius:50%;background:#1a1a1a;color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px}
+.step-body{flex:1}
+.step-title{font-size:13px;font-weight:600;margin-bottom:4px}
+.step-desc{font-size:12px;color:#888;line-height:1.7}
+.step-desc a{color:#185FA5;text-decoration:none}
+.step-desc a:hover{text-decoration:underline}
+.code-block{background:#f5f4f0;border:1px solid #e0dfd8;border-radius:8px;padding:12px 14px;font-family:monospace;font-size:12px;color:#1a1a1a;white-space:pre;overflow-x:auto;margin:8px 0;line-height:1.6}
+.setup-inputs{background:#f5f4f0;border:1px solid #e0dfd8;border-radius:12px;padding:16px;margin-top:20px}
+.setup-inputs-title{font-size:12px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px}
+.setup-field{display:flex;flex-direction:column;gap:5px;margin-bottom:10px}
+.setup-field label{font-size:12px;color:#777;font-weight:500}
+.setup-field input{width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;background:#fff;font-size:13px;font-family:monospace}
+.setup-field input:focus{outline:none;border-color:#999}
+.setup-error{font-size:12px;color:#a02020;margin-top:8px;display:none}
+/* REST */
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}
+.metric{background:#f5f4f0;border-radius:8px;padding:14px}
+.metric-label{font-size:11px;color:#888;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em}
+.metric-value{font-size:22px;font-weight:700}
+.metric-value.green{color:#2d6a1a}
+.metric-value.amber{color:#7a4a0a}
+.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:8px;flex-wrap:wrap}
+.section-title{font-size:14px;font-weight:600}
+.section-actions{display:flex;gap:6px}
+.btn-primary{padding:8px 16px;background:#1a1a1a;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500}
+.btn-primary:hover{background:#333}
+.btn-ghost{padding:6px 12px;background:transparent;border:1px solid #ccc;border-radius:8px;cursor:pointer;font-size:13px;color:#555}
+.btn-ghost:hover{background:#f5f4f0}
+.btn-green{padding:6px 12px;background:transparent;border:1px solid #7fbc5a;border-radius:8px;cursor:pointer;font-size:13px;color:#2d6a1a}
+.btn-green:hover{background:#d8f0c0}
+.btn-sm{padding:5px 10px;font-size:12px}
+.filters{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.filter-chip{padding:4px 12px;border:1px solid #e0dfd8;border-radius:20px;background:transparent;cursor:pointer;font-size:12px;color:#666}
+.filter-chip.active{background:#1a1a1a;color:#fff;border-color:#1a1a1a}
+.quotes-list{display:flex;flex-direction:column;gap:8px}
+.quote-card{background:#fff;border:1px solid #e0dfd8;border-radius:12px;padding:14px 16px;display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;cursor:pointer;transition:border-color .15s}
+.quote-card:hover{border-color:#999}
+.quote-meta{font-size:12px;color:#888;margin-top:4px;display:flex;gap:12px;flex-wrap:wrap}
+.quote-title{font-size:14px;font-weight:500}
+.quote-right{text-align:right}
+.quote-amount{font-size:15px;font-weight:700}
+.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500;margin-top:6px}
+.badge-bozza{background:#e8e6e0;color:#555}
+.badge-inviato{background:#dbeeff;color:#1a5fa0}
+.badge-accettato{background:#d8f0c0;color:#2d6a1a}
+.badge-rifiutato{background:#ffd8d8;color:#a02020}
+.badge-scaduto{background:#ffedc0;color:#7a4a0a}
+.empty-state{text-align:center;padding:48px 20px;color:#999;font-size:13px;line-height:1.8}
+.loading-state{text-align:center;padding:40px;color:#bbb;font-size:13px}
+.form-container{max-width:760px}
+.form-section{background:#fff;border:1px solid #e0dfd8;border-radius:12px;padding:18px;margin-bottom:14px}
+.form-section-title{font-size:11px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:.06em;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid #f0efe8}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.form-group{display:flex;flex-direction:column;gap:5px}
+.form-group.full{grid-column:1/-1}
+label{font-size:12px;color:#777;font-weight:500}
+input,select,textarea{width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;background:#fafaf8;color:#1a1a1a;font-size:13px;font-family:inherit;transition:border-color .15s}
+input:focus,select:focus,textarea:focus{outline:none;border-color:#999;background:#fff}
+textarea{resize:vertical;min-height:70px}
+.voci-header{display:grid;grid-template-columns:2fr 1.2fr 0.7fr 1fr 1fr auto;gap:8px;font-size:11px;color:#999;padding:0 0 6px}
+.voce-row{display:grid;grid-template-columns:2fr 1.2fr 0.7fr 1fr 1fr auto;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid #f0efe8}
+.voce-total{font-weight:700;font-size:13px;text-align:right;min-width:70px}
+.btn-remove{background:none;border:none;cursor:pointer;color:#bbb;font-size:18px;padding:0 4px;line-height:1}
+.btn-remove:hover{color:#c00}
+.btn-add-voce{background:none;border:1px dashed #ccc;border-radius:8px;cursor:pointer;color:#888;font-size:12px;padding:9px;width:100%;margin-top:8px}
+.btn-add-voce:hover{background:#f5f4f0}
+.total-box{background:#f5f4f0;border-radius:8px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;margin-top:14px}
+.total-breakdown{display:flex;flex-direction:column;gap:3px;font-size:12px;color:#888}
+.total-final{font-size:22px;font-weight:700}
+.form-actions{display:flex;gap:10px;padding-top:4px;flex-wrap:wrap}
+.detail-header{display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+.detail-back{background:none;border:1px solid #ccc;border-radius:8px;cursor:pointer;padding:6px 12px;font-size:13px;color:#555}
+.detail-back:hover{background:#f5f4f0}
+.detail-title{font-size:18px;font-weight:700}
+.detail-grid{display:grid;grid-template-columns:1fr 300px;gap:16px}
+.detail-card{background:#fff;border:1px solid #e0dfd8;border-radius:12px;padding:16px;margin-bottom:10px}
+.detail-row{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f0efe8;font-size:13px}
+.detail-row:last-child{border-bottom:none}
+.detail-row-label{color:#888}
+.detail-row.bold{font-weight:700}
+.status-select{border:1px solid #ddd;background:#fafaf8;border-radius:8px;padding:7px 12px;font-size:13px;cursor:pointer;color:#1a1a1a}
+.tariffe-section{margin-bottom:20px}
+.cat-label{display:inline-block;padding:3px 12px;border-radius:20px;font-size:11px;background:#f0efe8;color:#777;margin:16px 0 8px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.tariffe-table{width:100%;border-collapse:collapse;font-size:13px}
+.tariffe-table th{text-align:left;font-size:11px;color:#999;font-weight:600;padding:6px 10px;border-bottom:2px solid #f0efe8;text-transform:uppercase;letter-spacing:.04em}
+.tariffe-table td{padding:9px 10px;border-bottom:1px solid #f5f4f0;vertical-align:middle}
+.tariffe-table tr:last-child td{border-bottom:none}
+.tariffe-table tr:hover td{background:#fafaf8}
+.tariffa-actions{display:flex;gap:4px;justify-content:flex-end}
+.btn-icon{background:none;border:none;cursor:pointer;font-size:13px;color:#aaa;padding:3px 6px;border-radius:5px}
+.btn-icon:hover{background:#f0efe8;color:#333}
+.btn-icon.danger:hover{background:#ffd8d8;color:#c00}
+.editing-row td{background:#fffdf5!important}
+.inline-input{width:100%;padding:5px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;font-family:inherit;background:#fff}
+@media print{body{background:#fff}.topbar,.nav-tabs,.btn-primary,.btn-ghost,.btn-green,.detail-back,.status-select,.form-actions{display:none!important}.detail-grid{grid-template-columns:1fr 260px}}
+@media(max-width:640px){
+  .metrics{grid-template-columns:1fr 1fr}
+  .form-grid,.form-grid-3{grid-template-columns:1fr}
+  .form-group.full{grid-column:1}
+  .voci-header,.voce-row{grid-template-columns:2fr 0.7fr 1fr auto}
+  .voci-header span:nth-child(2),.voce-row select{display:none}
+  .detail-grid{grid-template-columns:1fr}
+  .tab-btn{padding:6px 10px;font-size:12px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="topbar-left">
+      <span class="topbar-title">Gestione Preventivi</span>
+      <span class="sync-badge offline" id="sync-badge">Non configurato</span>
+    </div>
+    <div class="nav-tabs" id="nav-tabs" style="display:none">
+      <button class="tab-btn active" onclick="switchTab('dashboard')">Dashboard</button>
+      <button class="tab-btn" onclick="switchTab('nuovo')">+ Nuovo</button>
+      <button class="tab-btn" onclick="switchTab('tariffe')">Tariffe</button>
+      <button class="tab-btn" onclick="switchTab('impostazioni')" style="font-size:16px;padding:4px 10px">⚙</button>
+    </div>
+  </div>
+  <div class="content" id="content"><div class="loading-state">Inizializzazione...</div></div>
+</div>
+
+<script>
+/* ─────────────────────────────────────────────
+   CONFIG — incolla qui le tue credenziali Supabase
+   dopo aver seguito i passi nella schermata di setup
+   ───────────────────────────────────────────── */
+const CONFIG = {
+  supabaseUrl: 'https://rnutpkctgqasrcksrmrv.supabase.co',
+  supabaseKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJudXRwa2N0Z3Fhc3Jja3NybXJ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MzAyMjYsImV4cCI6MjA4OTUwNjIyNn0.oIaLD4Yc7cLjx9VSQtPLHalW3UkZpAh3BJDimucqLU4',
+};
+const CONFIG_KEY = 'sb_config_v1';
+
+/* ── GLOBALS ── */
+const CATEGORIE=['Pre-produzione','Riprese','Post-produzione','Extra','Gestione'];
+const STATI=['bozza','inviato','accettato','rifiutato','scaduto'];
+let sb=null;
+let currentTab='dashboard',editingId=null,viewingId=null,filterStatus='tutti',formVoci=[];
+let editingTariffaId=null;
+let cachedData=[],cachedTariffe=[];
+
+/* ── INIT ── */
+async function init(){
+  const saved=JSON.parse(localStorage.getItem(CONFIG_KEY)||'null');
+  if(saved){CONFIG.supabaseUrl=saved.url;CONFIG.supabaseKey=saved.key}
+  if(CONFIG.supabaseUrl&&CONFIG.supabaseKey){
+    await connectSupabase();
+  }else{
+    renderSetup();
+  }
+}
+
+async function connectSupabase(){
+  try{
+    setSyncBadge('loading','Connessione...');
+    sb=supabase.createClient(CONFIG.supabaseUrl,CONFIG.supabaseKey);
+    await loadAll();
+    document.getElementById('nav-tabs').style.display='flex';
+    setSyncBadge('ok','Sincronizzato ☁');
+    switchTab('dashboard');
+  }catch(e){
+    setSyncBadge('error','Errore connessione');
+    renderSetup(e.message);
+  }
+}
+
+async function loadAll(){
+  const [pRes,tRes]=await Promise.all([
+    sb.from('preventivi').select('*').order('created_at',{ascending:false}),
+    sb.from('tariffe').select('*').order('id')
+  ]);
+  if(pRes.error)throw pRes.error;
+  if(tRes.error)throw tRes.error;
+  cachedData=pRes.data.map(r=>({...r.payload,_dbid:r.id,created_at:r.created_at}));
+  if(!tRes.data.length){
+    await sb.from('tariffe').insert(defaultTariffe().map(t=>({payload:t})));
+    const r2=await sb.from('tariffe').select('*').order('id');
+    cachedTariffe=r2.data.map(r=>({...r.payload,_dbid:r.id}));
+  }else{
+    cachedTariffe=tRes.data.map(r=>({...r.payload,_dbid:r.id}));
+  }
+}
+
+function setSyncBadge(state,text){
+  const el=document.getElementById('sync-badge');
+  el.className='sync-badge '+state;
+  el.textContent=text;
+}
+
+/* ── SETUP SCREEN ── */
+function renderSetup(errorMsg){
+  document.getElementById('nav-tabs').style.display='none';
+  const SQL=`-- Esegui questo nel SQL Editor di Supabase
+create table preventivi (
+  id bigint primary key generated always as identity,
+  payload jsonb not null,
+  created_at timestamptz default now()
+);
+
+create table tariffe (
+  id bigint primary key generated always as identity,
+  payload jsonb not null
+);
+
+-- Abilita accesso pubblico (solo per uso personale)
+alter table preventivi enable row level security;
+alter table tariffe enable row level security;
+create policy "allow all" on preventivi for all using (true) with check (true);
+create policy "allow all" on tariffe for all using (true) with check (true);`;
+
+  document.getElementById('content').innerHTML=`
+    <div class="setup-wrap">
+      <div class="setup-title">Configurazione database cloud</div>
+      <div class="setup-sub">Collega un database Supabase gratuito per avere i tuoi preventivi sincronizzati su tutti i dispositivi. Bastano 5 minuti.</div>
+
+      <div class="setup-step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <div class="step-title">Crea un account gratuito su Supabase</div>
+          <div class="step-desc">Vai su <a href="https://supabase.com" target="_blank">supabase.com</a> → "Start your project" → accedi con GitHub o email. È completamente gratuito per uso personale.</div>
+        </div>
+      </div>
+
+      <div class="setup-step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <div class="step-title">Crea un nuovo progetto</div>
+          <div class="step-desc">Clicca "New project" → scegli un nome (es. <em>preventivi</em>) → imposta una password → scegli la region <strong>West EU (Ireland)</strong> → clicca "Create new project". Attendi ~1 minuto.</div>
+        </div>
+      </div>
+
+      <div class="setup-step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <div class="step-title">Crea le tabelle del database</div>
+          <div class="step-desc">Nel menu a sinistra vai su <strong>SQL Editor</strong> → "New query" → incolla questo codice ed esegui con "Run":</div>
+          <div class="code-block">${esc(SQL)}</div>
+        </div>
+      </div>
+
+      <div class="setup-step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <div class="step-title">Copia le credenziali</div>
+          <div class="step-desc">Vai su <strong>Project Settings → API</strong>. Copia il <strong>Project URL</strong> e la chiave <strong>anon public</strong> e incollali qui sotto.</div>
+        </div>
+      </div>
+
+      <div class="setup-inputs">
+        <div class="setup-inputs-title">Credenziali Supabase</div>
+        <div class="setup-field">
+          <label>Project URL</label>
+          <input id="cfg_url" placeholder="https://xxxxxxxx.supabase.co" value="${esc(CONFIG.supabaseUrl)}">
+        </div>
+        <div class="setup-field">
+          <label>Anon public key</label>
+          <input id="cfg_key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." value="${esc(CONFIG.supabaseKey)}">
+        </div>
+        ${errorMsg?`<div class="setup-error" style="display:block">Errore: ${esc(errorMsg)}</div>`:''}
+        <div style="margin-top:14px">
+          <button class="btn-primary" onclick="saveConfig()">Connetti database</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function saveConfig(){
+  const url=document.getElementById('cfg_url').value.trim();
+  const key=document.getElementById('cfg_key').value.trim();
+  if(!url||!key){alert('Inserisci entrambe le credenziali.');return}
+  CONFIG.supabaseUrl=url;CONFIG.supabaseKey=key;
+  localStorage.setItem(CONFIG_KEY,JSON.stringify({url,key}));
+  await connectSupabase();
+}
+
+/* ── DATA HELPERS ── */
+function getData(){return cachedData}
+function getTariffe(){return cachedTariffe}
+function defaultTariffe(){return[
+  {id:1,nome:'Operatore / Giornata intera',rate:600,unit:'giorno',categoria:'Riprese'},
+  {id:2,nome:'Operatore / Mezza giornata',rate:350,unit:'mezza',categoria:'Riprese'},
+  {id:3,nome:'Sony FX3 + kit ottiche',rate:150,unit:'giorno',categoria:'Riprese'},
+  {id:4,nome:'Drone operator',rate:400,unit:'giorno',categoria:'Riprese'},
+  {id:5,nome:'Assistente set',rate:200,unit:'giorno',categoria:'Riprese'},
+  {id:6,nome:'Montaggio',rate:400,unit:'giorno',categoria:'Post-produzione'},
+  {id:7,nome:'Color grading',rate:250,unit:'giorno',categoria:'Post-produzione'},
+  {id:8,nome:'Motion graphics',rate:350,unit:'giorno',categoria:'Post-produzione'},
+  {id:9,nome:'Sound design',rate:200,unit:'giorno',categoria:'Post-produzione'},
+  {id:10,nome:'Concept / Regia',rate:400,unit:'giorno',categoria:'Pre-produzione'},
+  {id:11,nome:'Sopralluogo',rate:120,unit:'volta',categoria:'Pre-produzione'},
+  {id:12,nome:'Storyboard',rate:200,unit:'volta',categoria:'Pre-produzione'},
+  {id:13,nome:'Trasferta (>50km)',rate:80,unit:'giorno',categoria:'Extra'},
+  {id:14,nome:'Diritti musicali',rate:150,unit:'brano',categoria:'Extra'},
+  {id:15,nome:'Gestione progetto',rate:100,unit:'ora',categoria:'Gestione'},
+]}
+
+function genId(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
+function newVoce(n='',q=1,r=0,c='Riprese'){return{id:genId(),nome:n,qta:q,rate:r,categoria:c}}
+function voceTotal(v){return parseFloat(v.qta||0)*parseFloat(v.rate||0)}
+function prevTotal(p){return(p.voci||[]).reduce((s,v)=>s+voceTotal(v),0)}
+function fmt(n){return'€ '+Math.round(n).toLocaleString('it-IT')}
+function fmtDate(s){if(!s)return'—';try{const d=new Date(s);return d.toLocaleDateString('it-IT',{day:'2-digit',month:'short',year:'2-digit'})}catch{return s}}
+function esc(s){if(s===null||s===undefined)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+
+function switchTab(t){
+  currentTab=t;editingId=null;viewingId=null;editingTariffaId=null;
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',['dashboard','nuovo','tariffe','impostazioni'][i]===t));
+  render();
+}
+function render(){
+  const el=document.getElementById('content');
+  if(viewingId){el.innerHTML=renderDetail();return}
+  if(currentTab==='dashboard')el.innerHTML=renderDashboard();
+  else if(currentTab==='nuovo')el.innerHTML=renderForm();
+  else if(currentTab==='tariffe')el.innerHTML=renderTariffe();
+  else if(currentTab==='impostazioni')el.innerHTML=renderImpostazioni();
+}
+
+/* ── DASHBOARD ── */
+function renderDashboard(){
+  const data=getData();
+  const filtered=filterStatus==='tutti'?data:data.filter(p=>p.stato===filterStatus);
+  const totAcc=data.filter(p=>p.stato==='accettato').reduce((s,p)=>s+prevTotal(p),0);
+  const chips=['tutti',...STATI].map(s=>`<button class="filter-chip ${filterStatus===s?'active':''}" onclick="setFilter('${s}')">${s}</button>`).join('');
+  const cards=filtered.length?[...filtered].map(p=>{
+    const tot=prevTotal(p);
+    return`<div class="quote-card" onclick="viewQuote('${p._dbid||p.id}')">
+      <div><div class="quote-title">${esc(p.titolo)||'Senza titolo'}</div>
+      <div class="quote-meta"><span>${esc(p.cliente)||'—'}</span><span>N° ${esc(p.numero)}</span><span>${fmtDate(p.data)}</span><span>${esc(p.tipo)||''}</span></div></div>
+      <div class="quote-right"><div class="quote-amount">${fmt(tot)}</div><div><span class="badge badge-${p.stato}">${p.stato}</span></div></div>
+    </div>`;
+  }).join(''):`<div class="empty-state">Nessun preventivo${filterStatus!=='tutti'?' con stato "'+filterStatus+'"':''}.<br>Crea il primo con "+ Nuovo".</div>`;
+  const exportBtn=data.length?`<button class="btn-green btn-sm" onclick="exportExcel()">↓ Excel</button>`:'';
+  return`
+    <div class="metrics">
+      <div class="metric"><div class="metric-label">Preventivi</div><div class="metric-value">${data.length}</div></div>
+      <div class="metric"><div class="metric-label">Accettati</div><div class="metric-value green">${data.filter(p=>p.stato==='accettato').length}</div></div>
+      <div class="metric"><div class="metric-label">In attesa</div><div class="metric-value amber">${data.filter(p=>p.stato==='inviato').length}</div></div>
+      <div class="metric"><div class="metric-label">Valore acquisito</div><div class="metric-value">${fmt(totAcc)}</div></div>
+    </div>
+    <div class="section-header">
+      <span class="section-title">Storico preventivi</span>
+      <div class="section-actions">${exportBtn}<button class="btn-primary" onclick="switchTab('nuovo')">+ Nuovo</button></div>
+    </div>
+    <div class="filters">${chips}</div>
+    <div class="quotes-list">${cards}</div>`;
+}
+function setFilter(s){filterStatus=s;render()}
+
+/* ── EXCEL EXPORT ── */
+function exportExcel(){
+  const data=getData();
+  if(!data.length){alert('Nessun preventivo da esportare.');return}
+  const riepilogo=data.map(p=>{
+    const tot=prevTotal(p);const iva=tot*(parseFloat(p.iva)||22)/100;
+    return{'N° Preventivo':p.numero||'','Data':p.data||'','Cliente':p.cliente||'','Email':p.clienteEmail||'','Titolo':p.titolo||'','Tipo':p.tipo||'','Location':p.location||'','Giornate':p.giornate||'','Stato':p.stato||'','Imponibile (€)':Math.round(tot),'IVA (€)':Math.round(iva),'Totale lordo (€)':Math.round(tot+iva),'Anticipo %':p.anticipo||50,'Anticipo (€)':Math.round((tot+iva)*(parseFloat(p.anticipo)||50)/100),'Revisioni':p.revisioni||2,'Consegna':p.consegna||'','Scadenza offerta':p.scadenza||'','Note':p.note||'','Esclusioni':p.esclusioni||''};
+  });
+  const voci=[];
+  data.forEach(p=>{(p.voci||[]).forEach(v=>{voci.push({'N°':p.numero||'','Cliente':p.cliente||'','Titolo':p.titolo||'','Stato':p.stato||'','Categoria':v.categoria||'','Voce':v.nome||'','Qtà':parseFloat(v.qta)||0,'Tariffa (€)':parseFloat(v.rate)||0,'Totale (€)':Math.round(voceTotal(v))});})});
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(riepilogo),'Storico');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(voci),'Voci di costo');
+  XLSX.writeFile(wb,`preventivi_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
+/* ── DETAIL ── */
+function renderDetail(){
+  const p=getData().find(x=>(x._dbid||x.id)==viewingId);
+  if(!p){viewingId=null;return renderDashboard()}
+  const tot=prevTotal(p);const iva=tot*(parseFloat(p.iva)||22)/100;const totIva=tot+iva;
+  const anticipo=totIva*(parseFloat(p.anticipo)||50)/100;
+  const vociHtml=(p.voci||[]).map(v=>`<div class="detail-row"><span class="detail-row-label">${esc(v.nome)} × ${v.qta} <span style="color:#bbb;font-size:11px">${esc(v.categoria)}</span></span><span>${fmt(voceTotal(v))}</span></div>`).join('');
+  const stOpts=STATI.map(s=>`<option value="${s}" ${p.stato===s?'selected':''}>${s}</option>`).join('');
+  const dbid=p._dbid||p.id;
+  return`<div>
+    <div class="detail-header">
+      <button class="detail-back" onclick="backToDash()">← Indietro</button>
+      <div><div class="detail-title">${esc(p.titolo)||'Senza titolo'}</div><div style="font-size:12px;color:#888">N° ${esc(p.numero)} · ${esc(p.cliente)}</div></div>
+      <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+        <select class="status-select" onchange="updateStatus('${dbid}',this.value)">${stOpts}</select>
+        <button class="btn-ghost btn-sm" onclick="window.print()">PDF</button>
+        <button class="btn-ghost btn-sm" onclick="editQuote('${dbid}')">Modifica</button>
+        <button class="btn-ghost btn-sm" style="color:#c00;border-color:#f09595" onclick="deleteQuote('${dbid}')">Elimina</button>
+      </div>
+    </div>
+    <div class="detail-grid">
+      <div>
+        <div class="detail-card"><div class="form-section-title">Voci di costo</div>${vociHtml||'<p style="font-size:13px;color:#bbb">Nessuna voce</p>'}</div>
+        ${p.esclusioni?`<div class="detail-card"><div class="form-section-title">Esclusioni</div><p style="font-size:13px;color:#888;line-height:1.6">${esc(p.esclusioni)}</p></div>`:''}
+        ${p.note?`<div class="detail-card"><div class="form-section-title">Note</div><p style="font-size:13px;color:#888;line-height:1.6">${esc(p.note)}</p></div>`:''}
+      </div>
+      <div>
+        <div class="detail-card">
+          <div class="form-section-title">Cliente</div>
+          <div class="detail-row"><span class="detail-row-label">Nome</span><span>${esc(p.cliente)||'—'}</span></div>
+          <div class="detail-row"><span class="detail-row-label">Email</span><span>${esc(p.clienteEmail)||'—'}</span></div>
+          <div class="detail-row"><span class="detail-row-label">Tipo</span><span>${esc(p.tipo)||'—'}</span></div>
+          <div class="detail-row"><span class="detail-row-label">Location</span><span>${esc(p.location)||'—'}</span></div>
+          <div class="detail-row"><span class="detail-row-label">Giornate</span><span>${p.giornate||'—'}</span></div>
+          <div class="detail-row"><span class="detail-row-label">Scadenza</span><span>${fmtDate(p.scadenza)}</span></div>
+        </div>
+        <div class="detail-card">
+          <div class="form-section-title">Riepilogo economico</div>
+          <div class="detail-row"><span class="detail-row-label">Imponibile</span><span>${fmt(tot)}</span></div>
+          <div class="detail-row"><span class="detail-row-label">IVA ${p.iva||22}%</span><span>${fmt(iva)}</span></div>
+          <div class="detail-row bold"><span>Totale lordo</span><span>${fmt(totIva)}</span></div>
+          <div class="detail-row"><span class="detail-row-label">Anticipo ${p.anticipo||50}%</span><span>${fmt(anticipo)}</span></div>
+          <div class="detail-row"><span class="detail-row-label">Saldo</span><span>${fmt(totIva-anticipo)}</span></div>
+        </div>
+        <div class="detail-card">
+          <div class="form-section-title">Condizioni</div>
+          <div class="detail-row"><span class="detail-row-label">Revisioni</span><span>${p.revisioni||2}</span></div>
+          <div class="detail-row"><span class="detail-row-label">Consegna</span><span>${esc(p.consegna)||'—'}</span></div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function backToDash(){viewingId=null;currentTab='dashboard';render()}
+function viewQuote(id){viewingId=id;render()}
+
+async function updateStatus(dbid,stato){
+  const idx=cachedData.findIndex(p=>(p._dbid||p.id)==dbid);
+  if(idx<0)return;
+  cachedData[idx].stato=stato;
+  const payload={...cachedData[idx]};delete payload._dbid;
+  await sb.from('preventivi').update({payload}).eq('id',dbid);
+  setSyncBadge('ok','Sincronizzato ☁');
+}
+
+async function deleteQuote(dbid){
+  if(!confirm('Eliminare questo preventivo?'))return;
+  cachedData=cachedData.filter(p=>(p._dbid||p.id)!=dbid);
+  await sb.from('preventivi').delete().eq('id',dbid);
+  backToDash();
+}
+
+function editQuote(dbid){
+  const p=getData().find(x=>(x._dbid||x.id)==dbid);if(!p)return;
+  editingId=dbid;formVoci=(p.voci||[]).map(v=>({...v}));viewingId=null;currentTab='nuovo';
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',i===1));
+  render();
+  setTimeout(()=>{
+    const fields=['titolo','cliente','clienteEmail','numero','data','scadenza','tipo','location','giornate','revisioni','anticipo','iva','consegna','note','esclusioni'];
+    fields.forEach(f=>{const el=document.getElementById('f_'+f);if(el&&p[f]!==undefined)el.value=p[f]});
+  },50);
+}
+
+/* ── FORM ── */
+function renderForm(){
+  const nextNum='PRE-'+String(getData().length+1).padStart(3,'0');
+  const today=new Date().toISOString().split('T')[0];
+  if(!editingId)formVoci=[newVoce()];
+  const sub=formVoci.reduce((s,v)=>s+voceTotal(v),0);
+  return`<div class="form-container">
+    <div class="section-header" style="margin-bottom:16px">
+      <span class="section-title">${editingId?'Modifica preventivo':'Nuovo preventivo'}</span>
+      ${editingId?`<button class="btn-ghost btn-sm" onclick="cancelEdit()">Annulla</button>`:''}
+    </div>
+    <div class="form-section">
+      <div class="form-section-title">Anagrafica</div>
+      <div class="form-grid">
+        <div class="form-group"><label>Cliente / Azienda</label><input id="f_cliente" placeholder="Nome cliente..."></div>
+        <div class="form-group"><label>Email cliente</label><input id="f_clienteEmail" type="email" placeholder="email@..."></div>
+        <div class="form-group"><label>Titolo progetto</label><input id="f_titolo" placeholder="es. Spot social ALLIE AI..."></div>
+        <div class="form-group"><label>N° preventivo</label><input id="f_numero" value="${nextNum}"></div>
+        <div class="form-group"><label>Data</label><input id="f_data" type="date" value="${today}"></div>
+        <div class="form-group"><label>Scadenza offerta</label><input id="f_scadenza" type="date"></div>
+      </div>
+    </div>
+    <div class="form-section">
+      <div class="form-section-title">Brief</div>
+      <div class="form-grid-3">
+        <div class="form-group"><label>Tipo prodotto</label><select id="f_tipo"><option>Spot / Commercial</option><option>Corporate video</option><option>Social content</option><option>Documentario</option><option>Event coverage</option><option>Branded content</option><option>Altro</option></select></div>
+        <div class="form-group"><label>Location</label><select id="f_location"><option>Esterna</option><option>Studio</option><option>Mista</option><option>Trasferta</option></select></div>
+        <div class="form-group"><label>Giornate di ripresa</label><input id="f_giornate" type="number" min="0.5" step="0.5" value="1"></div>
+      </div>
+    </div>
+    <div class="form-section">
+      <div class="form-section-title">Voci di costo</div>
+      <div class="voci-header"><span>Descrizione</span><span>Categoria</span><span>Qtà</span><span>Tariffa €</span><span>Totale</span><span></span></div>
+      <div id="vc">${renderVoci()}</div>
+      <button class="btn-add-voce" onclick="addVoce()">+ Aggiungi voce</button>
+      <div class="total-box"><div class="total-breakdown"><span>Imponibile</span><span style="font-size:11px">IVA esclusa</span></div><div class="total-final" id="fst">${fmt(sub)}</div></div>
+    </div>
+    <div class="form-section">
+      <div class="form-section-title">Condizioni commerciali</div>
+      <div class="form-grid">
+        <div class="form-group"><label>Anticipo (%)</label><input id="f_anticipo" type="number" value="50" min="0" max="100"></div>
+        <div class="form-group"><label>IVA (%)</label><input id="f_iva" type="number" value="22" min="0"></div>
+        <div class="form-group"><label>Revisioni incluse</label><input id="f_revisioni" type="number" value="2" min="0"></div>
+        <div class="form-group"><label>Tempi di consegna</label><input id="f_consegna" placeholder="es. 15 giorni lavorativi"></div>
+        <div class="form-group full"><label>Esclusioni</label><textarea id="f_esclusioni" placeholder="es. diritti musicali, trasferte oltre 50km..."></textarea></div>
+        <div class="form-group full"><label>Note aggiuntive</label><textarea id="f_note" placeholder="Informazioni aggiuntive per il cliente..."></textarea></div>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn-primary" onclick="savePreventivo('bozza')">Salva bozza</button>
+      <button class="btn-ghost" onclick="savePreventivo('inviato')">Segna come inviato</button>
+      <button class="btn-ghost" onclick="switchTab('tariffe')" style="margin-left:auto">Libreria tariffe →</button>
+    </div>
+  </div>`;
+}
+
+function renderVoci(){
+  return formVoci.map(v=>`<div class="voce-row">
+    <input style="font-size:12px" value="${esc(v.nome)}" placeholder="Descrizione..." onchange="updateVoce('${v.id}','nome',this.value)">
+    <select style="font-size:12px" onchange="updateVoce('${v.id}','categoria',this.value)">${CATEGORIE.map(c=>`<option ${v.categoria===c?'selected':''}>${c}</option>`).join('')}</select>
+    <input type="number" value="${v.qta}" min="0.5" step="0.5" style="font-size:12px" onchange="updateVoce('${v.id}','qta',this.value)">
+    <input type="number" value="${v.rate}" placeholder="0" style="font-size:12px" onchange="updateVoce('${v.id}','rate',this.value)">
+    <span class="voce-total" id="vt_${v.id}">${fmt(voceTotal(v))}</span>
+    <button class="btn-remove" onclick="removeVoce('${v.id}')">×</button>
+  </div>`).join('');
+}
+
+function addVoce(){formVoci.push(newVoce());refreshVC()}
+function removeVoce(id){formVoci=formVoci.filter(v=>v.id!==id);refreshVC()}
+function updateVoce(id,f,val){
+  const v=formVoci.find(x=>x.id===id);if(!v)return;
+  v[f]=(f==='qta'||f==='rate')?parseFloat(val)||0:val;
+  const el=document.getElementById('vt_'+id);if(el)el.textContent=fmt(voceTotal(v));
+  updateTotal();
+}
+function updateTotal(){const s=formVoci.reduce((a,v)=>a+voceTotal(v),0);const el=document.getElementById('fst');if(el)el.textContent=fmt(s)}
+function refreshVC(){const el=document.getElementById('vc');if(el){el.innerHTML=renderVoci();updateTotal()}}
+
+function getFormData(){
+  const g=id=>{const el=document.getElementById('f_'+id);return el?el.value:''};
+  return{titolo:g('titolo'),cliente:g('cliente'),clienteEmail:g('clienteEmail'),numero:g('numero'),data:g('data'),scadenza:g('scadenza'),tipo:g('tipo'),location:g('location'),giornate:g('giornate'),revisioni:g('revisioni'),anticipo:g('anticipo'),iva:g('iva'),consegna:g('consegna'),note:g('note'),esclusioni:g('esclusioni'),voci:formVoci};
+}
+
+async function savePreventivo(stato){
+  const fd=getFormData();
+  if(!fd.titolo&&!fd.cliente){alert('Inserisci almeno il titolo o il cliente.');return}
+  setSyncBadge('loading','Salvataggio...');
+  try{
+    if(editingId){
+      const idx=cachedData.findIndex(p=>(p._dbid||p.id)==editingId);
+      if(idx>=0){
+        const updated={...cachedData[idx],...fd};
+        if(stato==='inviato')updated.stato='inviato';
+        cachedData[idx]=updated;
+        const payload={...updated};delete payload._dbid;
+        await sb.from('preventivi').update({payload}).eq('id',editingId);
+      }
+    }else{
+      const payload={id:genId(),...fd,stato,createdAt:new Date().toISOString()};
+      const {data:row,error}=await sb.from('preventivi').insert({payload}).select().single();
+      if(error)throw error;
+      cachedData.unshift({...payload,_dbid:row.id,created_at:row.created_at});
+    }
+    setSyncBadge('ok','Sincronizzato ☁');
+    editingId=null;filterStatus='tutti';switchTab('dashboard');
+  }catch(e){
+    setSyncBadge('error','Errore salvataggio');
+    alert('Errore nel salvataggio: '+e.message);
+  }
+}
+function cancelEdit(){editingId=null;viewingId=null;switchTab('dashboard')}
+
+/* ── TARIFFE ── */
+function renderTariffe(){
+  const tariffe=getTariffe();
+  const bycat={};CATEGORIE.forEach(c=>bycat[c]=tariffe.filter(t=>t.categoria===c));
+  const secs=CATEGORIE.map(cat=>{
+    const rows=bycat[cat].map(t=>{
+      const dbid=t._dbid||t.id;
+      if(editingTariffaId==dbid){
+        return`<tr class="editing-row">
+          <td><input class="inline-input" id="et_nome" value="${esc(t.nome)}"></td>
+          <td><input class="inline-input" id="et_rate" type="number" value="${t.rate}" style="width:90px"></td>
+          <td><input class="inline-input" id="et_unit" value="${esc(t.unit)}" style="width:80px"></td>
+          <td><div class="tariffa-actions">
+            <button class="btn-icon" onclick="saveTariffaEdit('${dbid}')" style="color:#2d6a1a">✓</button>
+            <button class="btn-icon" onclick="cancelTariffaEdit()">✕</button>
+          </div></td></tr>`;
+      }
+      return`<tr>
+        <td>${esc(t.nome)}</td>
+        <td style="font-weight:700;color:#185FA5">${fmt(t.rate)}</td>
+        <td style="color:#999">/ ${esc(t.unit)}</td>
+        <td><div class="tariffa-actions">
+          <button class="btn-icon" onclick="startEditTariffa('${dbid}')">✎</button>
+          <button class="btn-icon danger" onclick="deleteTariffa('${dbid}')">✕</button>
+        </div></td></tr>`;
+    }).join('');
+    if(!rows)return'';
+    return`<div class="tariffe-section"><span class="cat-label">${cat}</span>
+      <table class="tariffe-table"><thead><tr><th>Nome</th><th>Tariffa</th><th>Unità</th><th></th></tr></thead>
+      <tbody>${rows}</tbody></table></div>`;
+  }).join('');
+  return`<div>
+    <div class="section-header" style="margin-bottom:4px">
+      <span class="section-title">Libreria tariffe</span>
+      <button class="btn-ghost btn-sm" onclick="showAddTariffa()">+ Nuova tariffa</button>
+    </div>
+    <p style="font-size:12px;color:#999;margin-bottom:8px">Clicca ✎ per modificare · Le tariffe sono sincronizzate sul cloud.</p>
+    ${secs}
+    <div id="add-tf" style="display:none;margin-top:16px" class="form-section">
+      <div class="form-section-title">Nuova tariffa</div>
+      <div class="form-grid">
+        <div class="form-group"><label>Nome</label><input id="nt_nome" placeholder="es. Drone operator"></div>
+        <div class="form-group"><label>Categoria</label><select id="nt_cat">${CATEGORIE.map(c=>`<option>${c}</option>`).join('')}</select></div>
+        <div class="form-group"><label>Tariffa (€)</label><input id="nt_rate" type="number" placeholder="0"></div>
+        <div class="form-group"><label>Unità</label><input id="nt_unit" placeholder="giorno / ora / volta"></div>
+      </div>
+      <div style="margin-top:12px;display:flex;gap:8px">
+        <button class="btn-primary" onclick="addNewTariffa()">Salva</button>
+        <button class="btn-ghost" onclick="document.getElementById('add-tf').style.display='none'">Annulla</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function showAddTariffa(){const f=document.getElementById('add-tf');if(f)f.style.display='block'}
+
+async function addNewTariffa(){
+  const nome=document.getElementById('nt_nome').value.trim();
+  const cat=document.getElementById('nt_cat').value;
+  const rate=parseFloat(document.getElementById('nt_rate').value)||0;
+  const unit=document.getElementById('nt_unit').value.trim();
+  if(!nome){alert('Inserisci un nome.');return}
+  const payload={id:genId(),nome,categoria:cat,rate,unit};
+  const {data:row,error}=await sb.from('tariffe').insert({payload}).select().single();
+  if(error){alert('Errore: '+error.message);return}
+  cachedTariffe.push({...payload,_dbid:row.id});
+  render();
+}
+
+function startEditTariffa(dbid){editingTariffaId=dbid;render()}
+function cancelTariffaEdit(){editingTariffaId=null;render()}
+
+async function saveTariffaEdit(dbid){
+  const nome=document.getElementById('et_nome').value.trim();
+  const rate=parseFloat(document.getElementById('et_rate').value)||0;
+  const unit=document.getElementById('et_unit').value.trim();
+  if(!nome){alert('Il nome non può essere vuoto.');return}
+  const idx=cachedTariffe.findIndex(x=>(x._dbid||x.id)==dbid);
+  if(idx>=0){
+    cachedTariffe[idx]={...cachedTariffe[idx],nome,rate,unit};
+    const payload={...cachedTariffe[idx]};delete payload._dbid;
+    await sb.from('tariffe').update({payload}).eq('id',dbid);
+  }
+  editingTariffaId=null;render();
+}
+
+async function deleteTariffa(dbid){
+  if(!confirm('Eliminare questa tariffa?'))return;
+  cachedTariffe=cachedTariffe.filter(t=>(t._dbid||t.id)!=dbid);
+  await sb.from('tariffe').delete().eq('id',dbid);
+  render();
+}
+
+/* ── IMPOSTAZIONI ── */
+function renderImpostazioni(){
+  return`<div style="max-width:500px">
+    <div class="section-title" style="margin-bottom:16px">Impostazioni</div>
+    <div class="form-section">
+      <div class="form-section-title">Connessione database</div>
+      <p style="font-size:13px;color:#888;margin-bottom:12px;line-height:1.6">Il database è connesso. Per cambiare credenziali o riconfigurare il database, clicca il pulsante qui sotto.</p>
+      <button class="btn-ghost btn-sm" onclick="resetConfig()">Cambia credenziali Supabase</button>
+    </div>
+    <div class="form-section" style="margin-top:12px">
+      <div class="form-section-title">Dati</div>
+      <p style="font-size:13px;color:#888;margin-bottom:12px;line-height:1.6">Esporta tutti i preventivi in formato Excel come backup.</p>
+      <button class="btn-green btn-sm" onclick="exportExcel()">↓ Esporta Excel</button>
+    </div>
+  </div>`;
+}
+
+function resetConfig(){
+  if(!confirm('Disconnettersi dal database? Dovrai reinserire le credenziali.'))return;
+  localStorage.removeItem(CONFIG_KEY);
+  location.reload();
+}
+
+init();
+</script>
+</body>
+</html>
