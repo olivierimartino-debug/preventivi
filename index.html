@@ -343,31 +343,7 @@ function exportExcel(){
 /* ── FORM ── */
 function renderForm(){
   if(!editingId){formVoci=[];formDeliverables=[]}
-  // group voci by category
-  const vociBycat={};
-  CATEGORIE.forEach(c=>vociBycat[c]=(formVoci||[]).filter(v=>v.categoria===c));
-  const tariffeByCat={};
-  CATEGORIE.forEach(c=>tariffeByCat[c]=cachedTariffe.filter(t=>t.categoria===c));
-
-  const catSections=CATEGORIE.map(cat=>{
-    const chips=tariffeByCat[cat].map(t=>
-      `<span class="tariffa-chip" onclick="addVoceDaTariffa('${t._dbid||t.id}')">${esc(t.nome)} <span style="color:#185FA5;font-weight:600">${fmt(t.rate)}</span></span>`
-    ).join('');
-    const rows=vociBycat[cat].map(v=>`
-      <div class="voce-row" id="vr_${v.id}">
-        <input style="font-size:12px" value="${esc(v.nome)}" placeholder="Descrizione..." onchange="updateVoce('${v.id}','nome',this.value)">
-        <input type="number" value="${v.qta}" min="0.5" step="0.5" style="font-size:12px" onchange="updateVoce('${v.id}','qta',this.value)">
-        <input type="number" value="${v.rate}" placeholder="€" style="font-size:12px" onchange="updateVoce('${v.id}','rate',this.value)">
-        <span class="voce-total" id="vt_${v.id}">${fmt(voceTotal(v))}</span>
-        <button class="btn-remove" onclick="removeVoce('${v.id}')">×</button>
-      </div>`).join('');
-    return`<div class="cat-group">
-      <div class="cat-group-title"><span>${cat}</span></div>
-      ${chips?`<div class="tariffa-picker"><div class="tariffa-picker-title">Aggiungi da tariffe</div><div class="tariffe-chips">${chips}</div></div>`:''}
-      ${rows?`<div class="voci-header"><span>Descrizione</span><span>Qtà</span><span>Tariffa</span><span>Totale</span><span></span></div>${rows}`:''}
-      <button class="btn-add-voce" onclick="addVoce('${cat}')">+ voce manuale in ${cat}</button>
-    </div>`;
-  }).join('');
+  const catSections=buildVociHTML();
 
   const delivHtml=(formDeliverables||[]).map((d,i)=>`
     <div class="deliverable-card" id="del_${d.id}">
@@ -479,24 +455,33 @@ function updateVoce(id,f,val){
   const el=document.getElementById('vt_'+id);if(el)el.textContent=fmt(voceTotal(v));
   updateTotals();
 }
-function refreshVociContainer(){
-  const c=document.getElementById('voci-container');
-  if(!c)return;
-  // rebuild only voci rows, not full form
-  const vByCat={};CATEGORIE.forEach(cat=>vByCat[cat]=formVoci.filter(v=>v.categoria===cat));
-  CATEGORIE.forEach(cat=>{
-    const cg=c.querySelector(`[data-cat="${cat}"]`);
-    if(!cg)return;
+function buildVociHTML(){
+  const vByCat={};CATEGORIE.forEach(c=>vByCat[c]=formVoci.filter(v=>v.categoria===c));
+  const tariffeByCat={};CATEGORIE.forEach(c=>tariffeByCat[c]=cachedTariffe.filter(t=>t.categoria===c));
+  return CATEGORIE.map(cat=>{
+    const chips=tariffeByCat[cat].map(t=>
+      `<span class="tariffa-chip" onclick="addVoceDaTariffa('${t._dbid||t.id}')">${esc(t.nome)} <span style="color:#185FA5;font-weight:600">${fmt(t.rate)}</span></span>`
+    ).join('');
     const rows=vByCat[cat].map(v=>`
-      <div class="voce-row" id="vr_${v.id}">
+      <div class="voce-row">
         <input style="font-size:12px" value="${esc(v.nome)}" placeholder="Descrizione..." onchange="updateVoce('${v.id}','nome',this.value)">
         <input type="number" value="${v.qta}" min="0.5" step="0.5" style="font-size:12px" onchange="updateVoce('${v.id}','qta',this.value)">
         <input type="number" value="${v.rate}" placeholder="€" style="font-size:12px" onchange="updateVoce('${v.id}','rate',this.value)">
         <span class="voce-total" id="vt_${v.id}">${fmt(voceTotal(v))}</span>
         <button class="btn-remove" onclick="removeVoce('${v.id}')">×</button>
       </div>`).join('');
-    cg.innerHTML=(rows?`<div class="voci-header"><span>Descrizione</span><span>Qtà</span><span>Tariffa</span><span>Totale</span><span></span></div>`+rows:'');
-  });
+    return`<div class="cat-group">
+      <div class="cat-group-title"><span>${cat}</span></div>
+      ${chips?`<div class="tariffa-picker"><div class="tariffa-picker-title">Aggiungi da tariffe</div><div class="tariffe-chips">${chips}</div></div>`:''}
+      ${rows?`<div class="voci-header"><span>Descrizione</span><span>Qtà</span><span>Tariffa</span><span>Totale</span><span></span></div>${rows}`:''}
+      <button class="btn-add-voce" onclick="addVoce('${cat}')">+ voce manuale in ${cat}</button>
+    </div>`;
+  }).join('');
+}
+function refreshVociContainer(){
+  const c=document.getElementById('voci-container');
+  if(!c)return;
+  c.innerHTML=buildVociHTML();
   updateTotals();
 }
 
@@ -632,11 +617,6 @@ function renderDetail(){
 
     +'<div style="display:flex;flex-direction:column;gap:10px;max-width:660px">'
 
-      +(catRows||delRows?'<div class="detail-card"><div class="detail-section-title">Riepilogo</div>'
-        +catRows
-        +((p.deliverables||[]).length?'<div style="font-size:11px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:.05em;margin:14px 0 8px">Deliverables</div>'+delRows:'')
-      +'</div>':'')
-
       +'<div class="detail-card"><div class="detail-section-title">Info</div>'
         +(p.tipo?'<div class="detail-row"><span class="detail-row-label">Tipo progetto</span><span>'+esc(p.tipo)+'</span></div>':'')
         +(p.location?'<div class="detail-row"><span class="detail-row-label">Location</span><span>'+esc(p.location)+'</span></div>':'')
@@ -645,6 +625,11 @@ function renderDetail(){
         +(p.note?'<div class="detail-row"><span class="detail-row-label">Note</span><span style="text-align:right;max-width:60%">'+esc(p.note)+'</span></div>':'')
       +'</div>'
 
+
+      +(catRows||delRows?'<div class="detail-card"><div class="detail-section-title">Riepilogo</div>'
+        +catRows
+        +((p.deliverables||[]).length?'<div style="font-size:11px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:.05em;margin:14px 0 8px">Deliverables</div>'+delRows:'')
+      +'</div>':'')
       +(p.esclusioni?'<div class="detail-card"><div class="detail-section-title">Esclusioni</div><p style="font-size:13px;color:#888;line-height:1.7">'+esc(p.esclusioni)+'</p></div>':'')
 
       +'<div class="detail-card"><div class="detail-section-title">Riepilogo economico</div>'
@@ -664,6 +649,7 @@ function renderDetail(){
 
     +'</div>'
   +'</div>';
+}
 
 function printPrev(){window.print()}
 
