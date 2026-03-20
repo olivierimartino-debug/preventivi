@@ -249,7 +249,11 @@ function newDeliverable(){return{id:genId(),titolo:'',descrizione:'',costo:0,rev
 function voceTotal(v){return parseFloat(v.qta||0)*parseFloat(v.rate||0)}
 function vociTotal(voci){return(voci||[]).reduce((s,v)=>s+voceTotal(v),0)}
 function deliverablesTotal(dels){return(dels||[]).reduce((s,d)=>s+parseFloat(d.costo||0),0)}
-function prevTotal(p){return vociTotal(p.voci)+deliverablesTotal(p.deliverables)}
+function prevTotal(p){
+  const base=vociTotal(p.voci)+deliverablesTotal(p.deliverables);
+  const marg=parseFloat(p.margine||0);
+  return base*(1+marg/100);
+}
 function fmt(n){return'€ '+Math.round(n).toLocaleString('it-IT')}
 function fmtDate(s){if(!s)return'—';try{const d=new Date(s);return d.toLocaleDateString('it-IT',{day:'2-digit',month:'short',year:'numeric'})}catch{return s}}
 function esc(s){if(s==null)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
@@ -331,7 +335,7 @@ function setMonth(m){filterMonth=m;render()}
 function exportExcel(){
   const data=cachedData;
   if(!data.length){alert('Nessun preventivo da esportare.');return}
-  const rows=data.map(p=>{const tot=prevTotal(p);return{'N°':p.numero||'','Data':p.data||'','Cliente':p.cliente||'','Titolo':p.titolo||'','Tipo':p.tipo||'','Stato':p.stato||'','Totale (€)':Math.round(tot),'Anticipo %':p.anticipo||50,'Anticipo (€)':Math.round(tot*(parseFloat(p.anticipo)||50)/100),'Saldo (€)':Math.round(tot-tot*(parseFloat(p.anticipo)||50)/100),'Consegna':p.consegna||''}});
+  const rows=data.map(p=>{const tot=prevTotal(p);return{'N°':p.numero||'','Data':p.data||'','Cliente':p.cliente||'','Titolo':p.titolo||'','Tipo':p.tipo||'','Stato':p.stato||'','Totale (€)':Math.round(tot),'Anticipo %':(p.anticipo!=null&&p.anticipo!==''?p.anticipo:50),'Anticipo (€)':Math.round(tot*((p.anticipo!=null&&p.anticipo!==''?parseFloat(p.anticipo):50))/100),'Saldo (€)':Math.round(tot-tot*((p.anticipo!=null&&p.anticipo!==''?parseFloat(p.anticipo):50))/100),'Consegna':p.consegna||''}});
   const voci=[];
   data.forEach(p=>{(p.voci||[]).forEach(v=>{voci.push({'N°':p.numero||'','Cliente':p.cliente||'','Categoria':v.categoria||'','Voce':v.nome||'','Qtà':v.qta||0,'Tariffa':v.rate||0,'Totale':Math.round(voceTotal(v))})})});
   const wb=XLSX.utils.book_new();
@@ -410,13 +414,30 @@ function renderForm(){
 
     <div class="form-section">
       <div class="form-section-title">Riepilogo economico</div>
+      <div style="background:#fff3cd;border:1px solid #e0c060;border-radius:10px;padding:14px 16px;margin-bottom:10px">
+        <div style="font-size:11px;font-weight:700;color:#7a5c00;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Margine (non visibile al cliente)</div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:8px">
+            <label style="font-size:12px;color:#7a5c00">Margine %</label>
+            <input type="number" id="f_margine" value="0" min="0" max="100" style="width:65px;padding:5px 8px;font-size:13px;border:1px solid #c8a800;border-radius:6px;background:#fffae6" oninput="updateTotals()">
+            <span style="font-size:12px;color:#7a5c00">%</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;margin-left:auto">
+            <span style="font-size:12px;color:#7a5c00">Costo base</span>
+            <span id="tot-base" style="font-size:13px;font-weight:600;color:#7a5c00">${fmt(tot)}</span>
+            <span style="font-size:12px;color:#aaa">→</span>
+            <span style="font-size:12px;color:#7a5c00">Con margine</span>
+            <span id="tot-con-margine" style="font-size:13px;font-weight:700;color:#5c4000">${fmt(tot)}</span>
+          </div>
+        </div>
+      </div>
       <div class="total-box">
         <div style="display:flex;flex-direction:column;gap:6px;width:100%">
-          <div class="total-row"><span>Totale</span><span id="tot-total">${fmt(tot)}</span></div>
+          <div class="total-row"><span>Totale al cliente</span><span id="tot-total" style="font-weight:700">${fmt(tot)}</span></div>
           <div class="total-row" style="align-items:center;gap:10px">
             <span>Anticipo</span>
             <span style="display:flex;align-items:center;gap:6px;margin-left:auto">
-              <input type="number" id="f_anticipo" value="50" min="0" max="100" style="width:60px;padding:4px 8px;font-size:13px" onchange="updateTotals()"> %
+              <input type="number" id="f_anticipo" value="50" min="0" max="100" style="width:60px;padding:4px 8px;font-size:13px" oninput="updateTotals()"> %
               <span id="tot-anticipo" style="min-width:90px;text-align:right;font-weight:600">${fmt(tot*0.5)}</span>
             </span>
           </div>
@@ -512,12 +533,16 @@ function refreshDeliverables(){
 function updateTotals(){
   const sv=vociTotal(formVoci);
   const sd=deliverablesTotal(formDeliverables);
-  const tot=sv+sd;
-  const pct=parseFloat(document.getElementById('f_anticipo')?.value||50);
+  const base=sv+sd;
+  const margPct=parseFloat(document.getElementById('f_margine')?.value||0);
+  const tot=base*(1+margPct/100);
+  const pct=parseFloat(document.getElementById('f_anticipo')?.value??50);
   const anticipo=tot*pct/100;
   const el=id=>document.getElementById(id);
   if(el('fst-voci'))el('fst-voci').textContent=fmt(sv);
   if(el('fst-del'))el('fst-del').textContent=fmt(sd);
+  if(el('tot-base'))el('tot-base').textContent=fmt(base);
+  if(el('tot-con-margine'))el('tot-con-margine').textContent=fmt(tot);
   if(el('tot-total'))el('tot-total').textContent=fmt(tot);
   if(el('tot-anticipo'))el('tot-anticipo').textContent=fmt(anticipo);
   if(el('tot-saldo'))el('tot-saldo').textContent=fmt(tot-anticipo);
@@ -525,7 +550,7 @@ function updateTotals(){
 
 function getFormData(){
   const g=id=>{const el=document.getElementById('f_'+id);return el?el.value:''};
-  return{titolo:g('titolo'),cliente:g('cliente'),clienteEmail:g('clienteEmail'),numero:g('numero'),data:g('data'),scadenza:g('scadenza'),tipo:g('tipo'),location:g('location'),giornate:g('giornate'),anticipo:g('anticipo'),consegna:g('consegna'),note:g('note'),esclusioni:g('esclusioni'),voci:formVoci,deliverables:formDeliverables};
+  return{titolo:g('titolo'),cliente:g('cliente'),clienteEmail:g('clienteEmail'),numero:g('numero'),data:g('data'),scadenza:g('scadenza'),tipo:g('tipo'),location:g('location'),giornate:g('giornate'),anticipo:g('anticipo'),margine:g('margine'),consegna:g('consegna'),note:g('note'),esclusioni:g('esclusioni'),voci:formVoci,deliverables:formDeliverables};
 }
 
 async function savePreventivo(stato){
@@ -560,17 +585,18 @@ function renderDetail(){
   if(!p){viewingId=null;return renderDashboard()}
   const an=getAnagrafica();
   const tot=prevTotal(p);
-  const anticipo=tot*(parseFloat(p.anticipo)||50)/100;
+  const anticipo=tot*((p.anticipo!=null&&p.anticipo!==''?parseFloat(p.anticipo):50))/100;
   const saldo=tot-anticipo;
 
+  const margFactor=1+parseFloat(p.margine||0)/100;
   const vByCat={};CATEGORIE.forEach(c=>vByCat[c]=(p.voci||[]).filter(v=>v.categoria===c));
   const catRows=CATEGORIE.map(cat=>{
     const rows=vByCat[cat];if(!rows.length)return'';
-    const catTot=rows.reduce((s,v)=>s+voceTotal(v),0);
+    const catTot=rows.reduce((s,v)=>s+voceTotal(v),0)*margFactor;
     return'<div class="detail-row"><span style="font-weight:500">'+cat+'</span><span>'+fmt(catTot)+'</span></div>';
   }).join('');
 
-  const delRows=(p.deliverables||[]).map(d=>'<div class="deliverable-detail"><div class="deliverable-detail-title">'+esc(d.titolo||'Deliverable')+'</div>'+(d.descrizione?'<div class="deliverable-detail-desc">'+esc(d.descrizione)+'</div>':'')+'<div class="deliverable-detail-meta"><span style="font-weight:600">'+fmt(parseFloat(d.costo||0))+'</span><span>'+((d.revisioni||0)+' revision'+(d.revisioni==1?'e':'i')+' inclus'+(d.revisioni==1?'a':'e'))+'</span></div></div>').join('');
+  const delRows=(p.deliverables||[]).map(d=>'<div class="deliverable-detail"><div class="deliverable-detail-title">'+esc(d.titolo||'Deliverable')+'</div>'+(d.descrizione?'<div class="deliverable-detail-desc">'+esc(d.descrizione)+'</div>':'')+'<div class="deliverable-detail-meta"><span style="font-weight:600">'+fmt(parseFloat(d.costo||0)*margFactor)+'</span><span>'+((d.revisioni||0)+' revision'+(d.revisioni==1?'e':'i')+' inclus'+(d.revisioni==1?'a':'e'))+'</span></div></div>').join('');
 
   const stOpts=STATI.map(s=>'<option value="'+s+'" '+(p.stato===s?'selected':'')+'>'+s+'</option>').join('');
 
@@ -634,7 +660,7 @@ function renderDetail(){
 
       +'<div class="detail-card"><div class="detail-section-title">Riepilogo economico</div>'
         +'<div class="detail-row"><span class="detail-row-label">Totale</span><span style="font-weight:600">'+fmt(tot)+'</span></div>'
-        +'<div class="detail-row"><span class="detail-row-label">Anticipo '+( p.anticipo||50)+'%</span><span>'+fmt(anticipo)+'</span></div>'
+        +'<div class="detail-row"><span class="detail-row-label">Anticipo '+(p.anticipo!=null&&p.anticipo!==''?p.anticipo:50)+'%</span><span>'+fmt(anticipo)+'</span></div>'
         +'<div class="detail-row total-line"><span>Saldo</span><span>'+fmt(saldo)+'</span></div>'
       +'</div>'
 
@@ -681,7 +707,7 @@ function editQuote(dbid){
   document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',i===1));
   render();
   setTimeout(()=>{
-    const fields=['titolo','cliente','clienteEmail','numero','data','scadenza','tipo','location','giornate','anticipo','consegna','note','esclusioni'];
+    const fields=['titolo','cliente','clienteEmail','numero','data','scadenza','tipo','location','giornate','anticipo','margine','consegna','note','esclusioni'];
     fields.forEach(f=>{const el=document.getElementById('f_'+f);if(el&&p[f]!=null)el.value=p[f]});
   },50);
 }
