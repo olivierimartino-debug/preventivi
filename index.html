@@ -612,8 +612,6 @@ function renderDetail(){
   const scontoAmt=p.sconto_tipo==='pct'?totLordo*scontoVal/100:scontoVal;
   const anticipo=tot*((p.anticipo!=null&&p.anticipo!==''?parseFloat(p.anticipo):50))/100;
   const saldo=tot-anticipo;
-
-  const margFactor=1+parseFloat(p.margine||0)/100;
   const vByCat={};CATEGORIE.forEach(c=>vByCat[c]=(p.voci||[]).filter(v=>v.categoria===c));
   const catRows=CATEGORIE.map(cat=>{
     const rows=vByCat[cat];if(!rows.length)return'';
